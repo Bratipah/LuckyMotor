@@ -1,0 +1,63 @@
+{
+  "networks": {
+    "liskSepolia": {
+      "name": "Lisk Sepolia Testnet",
+      "chainId": 4202,
+      "rpcUrl": "https://rpc.sepolia-api.lisk.com",
+      "blockExplorer": "https://sepolia-blockscout.lisk.com",
+      "currency": {
+        "name": "Sepolia Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "testnet": true
+    },
+    "lisk": {
+      "name": "Lisk Mainnet",
+      "chainId": 1135,
+      "rpcUrl": "https://rpc.api.lisk.com",
+      "blockExplorer": "https://blockscout.lisk.com",
+      "currency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "testnet": false
+    }
+  },
+  "contracts": {
+    "LuckyMotorsToken": {
+      "name": "LuckyMotors Token",
+      "symbol": "LMT",
+      "decimals": 18,
+      "initialSupply": "1000000",
+      "maxSupply": "10000000"
+    },
+    "LuckyMotorsLottery": {
+      "ticketPrice": "0.01",
+      "maxTicketsPerRound": 1000,
+      "minTicketsForDraw": 3,
+      "houseFeePercentage": 5,
+      "tokenRewardRate": 50,
+      "randomnessDelayBlocks": 3,
+      "prizeDistribution": {
+        "firstPrize": 50,
+        "secondPrize": 30,
+        "thirdPrize": 15,
+        "houseFee": 5
+      }
+    }
+  },
+  "deployment": {
+    "gasLimit": {
+      "token": 2000000,
+      "lottery": 3000000
+    },
+    "gasPrice": {
+      "slow": "1000000000",
+      "standard": "2000000000",
+      "fast": "3000000000"
+    },
+    "confirmations": 3
+  }
+}

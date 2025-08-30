@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,24 +10,16 @@ import "./LuckyMotorsToken.sol";
 /**
  * @title LuckyMotorsLottery
  * @dev A decentralized lottery system with token rewards and multiple prize tiers
+ * Uses block-based randomness for winner selection on Lisk L2
  * @author LuckyMotors Team
  */
-contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuard, Pausable {
-    VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
+contract LuckyMotorsLottery is Ownable, ReentrancyGuard, Pausable {
     LuckyMotorsToken public immutable lmtToken;
     
-    // Chainlink VRF Configuration
-    uint64 private immutable i_subscriptionId;
-    bytes32 private immutable i_gasLane;
-    uint32 private immutable i_callbackGasLimit;
-    uint16 private constant REQUEST_CONFIRMATIONS = 3;
-    uint32 private constant NUM_WORDS = 1;
-
     // Lottery Configuration
     uint256 public constant TICKET_PRICE = 0.01 ether;
     uint256 public constant MAX_TICKETS_PER_ROUND = 1000;
-    uint256 public constant HOUSE_FEE_PERCENTAGE = 5; // 5% house fee
-    uint256 public constant TOKEN_REWARD_RATE = 50; // 50% of ticket price in tokens (0.005 ETH worth)
+    uint256 public constant MIN_TICKETS_FOR_DRAW = 3; // Minimum tickets needed for a draw
     
     // Prize Distribution (in percentage)
     uint256 public constant FIRST_PRIZE_PERCENTAGE = 50;  // 50% of prize pool
@@ -39,10 +29,14 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
     // Token pricing (1 LMT = 0.001 ETH for ticket purchases)
     uint256 public constant TOKEN_TO_ETH_RATE = 1000; // 1000 LMT = 1 ETH
     
+    // Randomness configuration
+    uint256 public constant RANDOMNESS_DELAY_BLOCKS = 3; // Wait 3 blocks for randomness
+    
     enum LotteryState {
         OPEN,
-        CALCULATING,
-        CLOSED
+        CLOSED,
+        DRAWING,
+        COMPLETED
     }
 
     struct LotteryRound {
@@ -60,113 +54,104 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
         uint256 thirdPrizeAmount;
         LotteryState state;
         bool prizesDistributed;
+        uint256 randomnessRequestBlock;
     }
 
     struct PlayerStats {
-        uint256 totalTicketsPurchased;
+        uint256 totalTicketsBought;
+        uint256 totalAmountSpent;
         uint256 totalTokensEarned;
-        uint256 totalEthSpent;
-        uint256 totalTokensSpent;
-        uint256[] participatedRounds;
+        uint256 totalPrizesWon;
+        uint256 roundsParticipated;
     }
 
     // State Variables
     uint256 public currentRoundId;
-    mapping(uint256 => LotteryRound) public lotteryRounds;
-    mapping(uint256 => uint256) private vrfRequestToRoundId;
-    mapping(address => uint256[]) public playerTickets; // player => roundIds
-    mapping(uint256 => mapping(address => uint256)) public ticketsPerPlayerPerRound;
-    mapping(address => PlayerStats) public playerStats;
-    
+    uint256 public totalRounds;
     uint256 public houseFunds;
-    uint256 public totalRoundsCompleted;
-    uint256 public totalTokensDistributed;
-
+    mapping(uint256 => LotteryRound) public lotteryRounds;
+    mapping(address => PlayerStats) public playerStats;
+    mapping(uint256 => mapping(address => uint256)) public playerTicketsPerRound;
+    
     // Events
-    event LotteryRoundStarted(uint256 indexed roundId, uint256 startTime);
-    event TicketPurchased(uint256 indexed roundId, address indexed player, uint256 ticketCount, bool paidWithTokens);
+    event RoundStarted(uint256 indexed roundId, uint256 startTime);
+    event TicketsPurchased(address indexed player, uint256 indexed roundId, uint256 ticketCount, uint256 totalCost);
+    event TicketsPurchasedWithTokens(address indexed player, uint256 indexed roundId, uint256 ticketCount, uint256 tokenCost);
     event TokensRewarded(address indexed player, uint256 amount);
-    event LotteryRoundEnded(uint256 indexed roundId, uint256 endTime);
-    event WinnersSelected(
-        uint256 indexed roundId,
-        address indexed firstPrize,
-        address indexed secondPrize,
-        address thirdPrize
-    );
-    event PrizesDistributed(
-        uint256 indexed roundId,
-        uint256 firstPrizeAmount,
-        uint256 secondPrizeAmount,
-        uint256 thirdPrizeAmount
-    );
+    event RoundClosed(uint256 indexed roundId, uint256 totalTickets, uint256 prizePool);
+    event RandomnessRequested(uint256 indexed roundId, uint256 requestBlock);
+    event WinnersSelected(uint256 indexed roundId, address firstWinner, address secondWinner, address thirdWinner);
+    event PrizesDistributed(uint256 indexed roundId, uint256 firstPrize, uint256 secondPrize, uint256 thirdPrize);
     event HouseFundsWithdrawn(uint256 amount);
 
     // Custom Errors
     error LotteryNotOpen();
+    error LotteryNotClosed();
     error InsufficientPayment();
-    error InsufficientTokens();
     error MaxTicketsExceeded();
     error NoTicketsSold();
+    error RandomnessNotReady();
     error PrizesAlreadyDistributed();
-    error WithdrawalFailed();
-    error InvalidRoundId();
-    error TokenTransferFailed();
+    error InsufficientTokens();
+    error TransferFailed();
+    error ZeroTickets();
+    error MinTicketsNotReached();
 
-    constructor(
-        uint64 subscriptionId,
-        address vrfCoordinatorV2,
-        bytes32 gasLane,
-        uint32 callbackGasLimit,
-        address _lmtToken
-    ) VRFConsumerBaseV2(vrfCoordinatorV2) ConfirmedOwner(msg.sender) {
-        i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
-        i_gasLane = gasLane;
-        i_subscriptionId = subscriptionId;
-        i_callbackGasLimit = callbackGasLimit;
-        lmtToken = LuckyMotorsToken(_lmtToken);
-        
-        // Start the first lottery round
+    constructor(address _tokenAddress) {
+        lmtToken = LuckyMotorsToken(_tokenAddress);
         _startNewRound();
     }
-
+    
     /**
      * @dev Purchase lottery tickets with ETH for the current round
      * @param ticketCount Number of tickets to purchase
      */
     function buyTickets(uint256 ticketCount) external payable nonReentrant whenNotPaused {
-        LotteryRound storage currentRound = lotteryRounds[currentRoundId];
+        if (ticketCount == 0) revert ZeroTickets();
         
-        if (currentRound.state != LotteryState.OPEN) {
-            revert LotteryNotOpen();
-        }
+        LotteryRound storage round = lotteryRounds[currentRoundId];
+        if (round.state != LotteryState.OPEN) revert LotteryNotOpen();
         
         uint256 totalCost = TICKET_PRICE * ticketCount;
-        if (msg.value < totalCost) {
-            revert InsufficientPayment();
+        if (msg.value < totalCost) revert InsufficientPayment();
+        
+        if (round.totalTickets + ticketCount > MAX_TICKETS_PER_ROUND) revert MaxTicketsExceeded();
+        
+        // Add tickets to the current round
+        for (uint256 i = 0; i < ticketCount; i++) {
+            round.players.push(msg.sender);
         }
         
-        if (currentRound.totalTickets + ticketCount > MAX_TICKETS_PER_ROUND) {
-            revert MaxTicketsExceeded();
-        }
-
-        _processPurchase(ticketCount, totalCost, false);
-
-        // Refund excess payment
-        if (msg.value > totalCost) {
-            payable(msg.sender).transfer(msg.value - totalCost);
-        }
-
-        // Reward tokens (50% of ticket price in token value)
-        uint256 tokenReward = (totalCost * TOKEN_REWARD_RATE * TOKEN_TO_ETH_RATE) / (100 * 1 ether) * 1 ether;
-        lmtToken.mint(msg.sender, tokenReward);
+        round.totalTickets += ticketCount;
+        round.prizePool += totalCost;
         
         // Update player stats
-        playerStats[msg.sender].totalTokensEarned += tokenReward;
-        playerStats[msg.sender].totalEthSpent += totalCost;
-        totalTokensDistributed += tokenReward;
-
+        playerTicketsPerRound[currentRoundId][msg.sender] += ticketCount;
+        PlayerStats storage stats = playerStats[msg.sender];
+        stats.totalTicketsBought += ticketCount;
+        stats.totalAmountSpent += totalCost;
+        if (playerTicketsPerRound[currentRoundId][msg.sender] == ticketCount) {
+            stats.roundsParticipated++;
+        }
+        
+        // Reward tokens (50% of ticket price in token value)
+        uint256 tokenReward = (totalCost * 50 * 1000) / (100 * 1 ether) * 1 ether;
+        lmtToken.mint(msg.sender, tokenReward);
+        stats.totalTokensEarned += tokenReward;
+        
+        // Refund excess payment
+        if (msg.value > totalCost) {
+            (bool success, ) = payable(msg.sender).call{value: msg.value - totalCost}("");
+            if (!success) revert TransferFailed();
+        }
+        
+        emit TicketsPurchased(msg.sender, currentRoundId, ticketCount, totalCost);
         emit TokensRewarded(msg.sender, tokenReward);
-        emit TicketPurchased(currentRoundId, msg.sender, ticketCount, false);
+        
+        // Auto-end round if max tickets reached
+        if (round.totalTickets >= MAX_TICKETS_PER_ROUND) {
+            _closeCurrentRound();
+        }
     }
 
     /**
@@ -174,209 +159,220 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
      * @param ticketCount Number of tickets to purchase
      */
     function buyTicketsWithTokens(uint256 ticketCount) external nonReentrant whenNotPaused {
-        LotteryRound storage currentRound = lotteryRounds[currentRoundId];
+        if (ticketCount == 0) revert ZeroTickets();
         
-        if (currentRound.state != LotteryState.OPEN) {
-            revert LotteryNotOpen();
-        }
+        LotteryRound storage round = lotteryRounds[currentRoundId];
+        if (round.state != LotteryState.OPEN) revert LotteryNotOpen();
         
-        if (currentRound.totalTickets + ticketCount > MAX_TICKETS_PER_ROUND) {
-            revert MaxTicketsExceeded();
-        }
-
-        uint256 totalCost = TICKET_PRICE * ticketCount;
-        uint256 tokenCost = totalCost * TOKEN_TO_ETH_RATE; // Convert ETH cost to token amount
+        if (round.totalTickets + ticketCount > MAX_TICKETS_PER_ROUND) revert MaxTicketsExceeded();
         
-        if (lmtToken.balanceOf(msg.sender) < tokenCost) {
-            revert InsufficientTokens();
-        }
-
+        uint256 ethCost = TICKET_PRICE * ticketCount;
+        uint256 tokenCost = ethCost * TOKEN_TO_ETH_RATE / 1 ether;
+        
+        if (lmtToken.balanceOf(msg.sender) < tokenCost) revert InsufficientTokens();
+        
         // Burn tokens for ticket purchase
         if (!lmtToken.transferFrom(msg.sender, address(this), tokenCost)) {
             revert TokenTransferFailed();
         }
         lmtToken.burn(tokenCost);
 
-        _processPurchase(ticketCount, totalCost, true);
-
-        // Update player stats
-        playerStats[msg.sender].totalTokensSpent += tokenCost;
-
-        emit TicketPurchased(currentRoundId, msg.sender, ticketCount, true);
-    }
-
-    /**
-     * @dev Internal function to process ticket purchase
-     */
-    function _processPurchase(uint256 ticketCount, uint256 totalCost, bool paidWithTokens) internal {
-        LotteryRound storage currentRound = lotteryRounds[currentRoundId];
-
         // Add tickets to the current round
         for (uint256 i = 0; i < ticketCount; i++) {
-            currentRound.players.push(msg.sender);
+            round.players.push(msg.sender);
         }
         
-        currentRound.totalTickets += ticketCount;
-        currentRound.prizePool += totalCost;
-        ticketsPerPlayerPerRound[currentRoundId][msg.sender] += ticketCount;
+        round.totalTickets += ticketCount;
+        round.prizePool += ethCost;
         
         // Update player stats
+        playerTicketsPerRound[currentRoundId][msg.sender] += ticketCount;
         PlayerStats storage stats = playerStats[msg.sender];
-        stats.totalTicketsPurchased += ticketCount;
-        
-        // Add round to player's participated rounds if first time
-        bool alreadyParticipated = false;
-        for (uint256 i = 0; i < stats.participatedRounds.length; i++) {
-            if (stats.participatedRounds[i] == currentRoundId) {
-                alreadyParticipated = true;
-                break;
-            }
-        }
-        if (!alreadyParticipated) {
-            stats.participatedRounds.push(currentRoundId);
-            playerTickets[msg.sender].push(currentRoundId);
+        stats.totalTicketsBought += ticketCount;
+        stats.totalAmountSpent += ethCost;
+        if (playerTicketsPerRound[currentRoundId][msg.sender] == ticketCount) {
+            stats.roundsParticipated++;
         }
 
+        emit TicketsPurchasedWithTokens(msg.sender, currentRoundId, ticketCount, tokenCost);
+        
         // Auto-end round if max tickets reached
-        if (currentRound.totalTickets >= MAX_TICKETS_PER_ROUND) {
-            _endCurrentRound();
+        if (round.totalTickets >= MAX_TICKETS_PER_ROUND) {
+            _closeCurrentRound();
         }
     }
 
     /**
      * @dev Manually end the current lottery round (only owner)
      */
-    function endCurrentRound() external onlyOwner {
-        _endCurrentRound();
+    function closeCurrentRound() external onlyOwner {
+        _closeCurrentRound();
     }
 
     /**
      * @dev Internal function to end the current lottery round
      */
-    function _endCurrentRound() internal {
-        LotteryRound storage currentRound = lotteryRounds[currentRoundId];
+    function _closeCurrentRound() internal {
+        LotteryRound storage round = lotteryRounds[currentRoundId];
         
-        if (currentRound.state != LotteryState.OPEN) {
+        if (round.state != LotteryState.OPEN) {
             revert LotteryNotOpen();
         }
         
-        if (currentRound.totalTickets == 0) {
+        if (round.totalTickets == 0) {
             revert NoTicketsSold();
         }
 
-        currentRound.state = LotteryState.CALCULATING;
-        currentRound.endTime = block.timestamp;
+        if (round.totalTickets < MIN_TICKETS_FOR_DRAW) {
+            revert MinTicketsNotReached();
+        }
 
-        // Request random number from Chainlink VRF
-        uint256 requestId = i_vrfCoordinator.requestRandomWords(
-            i_gasLane,
-            i_subscriptionId,
-            REQUEST_CONFIRMATIONS,
-            i_callbackGasLimit,
-            NUM_WORDS
-        );
-        
-        vrfRequestToRoundId[requestId] = currentRoundId;
-        
-        emit LotteryRoundEnded(currentRoundId, block.timestamp);
+        round.state = LotteryState.CLOSED;
+        round.endTime = block.timestamp;
+        round.randomnessRequestBlock = block.number;
+
+        emit RoundClosed(currentRoundId, round.totalTickets, round.prizePool);
+        emit RandomnessRequested(currentRoundId, block.number);
     }
 
     /**
-     * @dev Callback function used by VRF Coordinator
+     * @dev Fulfill randomness and select winners (can be called by anyone after delay)
+     * @param roundId The round ID to process
      */
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
-        uint256 roundId = vrfRequestToRoundId[requestId];
+    function fulfillRandomness(uint256 roundId) external nonReentrant {
         LotteryRound storage round = lotteryRounds[roundId];
         
-        if (round.totalTickets == 0) return;
-
-        uint256 randomNumber = randomWords[0];
+        if (round.state != LotteryState.CLOSED) {
+            revert LotteryNotClosed();
+        }
         
-        // Select winners based on random number
+        if (block.number < round.randomnessRequestBlock + RANDOMNESS_DELAY_BLOCKS) {
+            revert RandomnessNotReady();
+        }
+        
+        round.state = LotteryState.DRAWING;
+        
+        // Generate randomness using block properties
+        uint256 randomNumber = _generateRandomness(roundId, round.randomnessRequestBlock + RANDOMNESS_DELAY_BLOCKS);
+        
+        // Select winners
         _selectWinners(roundId, randomNumber);
         
-        // Distribute prizes
-        _distributePrizes(roundId);
+        round.state = LotteryState.COMPLETED;
         
         // Start new round
         _startNewRound();
     }
-
+    
+    /**
+     * @dev Generate randomness using block properties
+     */
+    function _generateRandomness(uint256 roundId, uint256 targetBlock) internal view returns (uint256) {
+        bytes32 blockHash = blockhash(targetBlock);
+        
+        // If blockhash is not available (>256 blocks old), use current block properties
+        if (blockHash == bytes32(0)) {
+            return uint256(keccak256(abi.encodePacked(
+                block.timestamp,
+                block.difficulty,
+                block.coinbase,
+                roundId,
+                msg.sender
+            )));
+        }
+        
+        return uint256(keccak256(abi.encodePacked(
+            blockHash,
+            block.timestamp,
+            roundId
+        )));
+    }
+    
     /**
      * @dev Select winners for a lottery round
      */
     function _selectWinners(uint256 roundId, uint256 randomNumber) internal {
         LotteryRound storage round = lotteryRounds[roundId];
         
-        // Generate three different random indices for winners
-        uint256 firstIndex = randomNumber % round.totalTickets;
-        uint256 secondIndex = (randomNumber / round.totalTickets) % round.totalTickets;
-        uint256 thirdIndex = (randomNumber / (round.totalTickets * round.totalTickets)) % round.totalTickets;
-        
-        // Ensure different winners (if possible)
-        if (round.totalTickets > 1 && secondIndex == firstIndex) {
-            secondIndex = (secondIndex + 1) % round.totalTickets;
+        if (round.totalTickets == 0) {
+            revert NoTicketsSold();
         }
-        if (round.totalTickets > 2 && (thirdIndex == firstIndex || thirdIndex == secondIndex)) {
-            thirdIndex = (thirdIndex + 1) % round.totalTickets;
-            if (thirdIndex == firstIndex || thirdIndex == secondIndex) {
+
+        // Calculate prize amounts
+        uint256 totalPrizePool = round.prizePool;
+        uint256 houseFee = (totalPrizePool * 5) / 100;
+        uint256 distributablePrizes = totalPrizePool - houseFee;
+        
+        round.firstPrizeAmount = (distributablePrizes * 50) / 100;
+        round.secondPrizeAmount = (distributablePrizes * 30) / 100;
+        round.thirdPrizeAmount = (distributablePrizes * 15) / 100;
+        
+        houseFunds += houseFee;
+        
+        // Select winners using different parts of the random number
+        uint256 firstIndex = randomNumber % round.totalTickets;
+        round.firstPrizeWinner = round.players[firstIndex];
+        
+        if (round.totalTickets > 1) {
+            uint256 secondIndex = (randomNumber / round.totalTickets) % round.totalTickets;
+            // Ensure different winner
+            if (secondIndex == firstIndex && round.totalTickets > 1) {
+                secondIndex = (secondIndex + 1) % round.totalTickets;
+            }
+            round.secondPrizeWinner = round.players[secondIndex];
+        }
+        
+        if (round.totalTickets > 2) {
+            uint256 thirdIndex = (randomNumber / (round.totalTickets * round.totalTickets)) % round.totalTickets;
+            // Ensure different winner
+            while ((thirdIndex == firstIndex || thirdIndex == (randomNumber / round.totalTickets) % round.totalTickets) && round.totalTickets > 2) {
                 thirdIndex = (thirdIndex + 1) % round.totalTickets;
             }
+            round.thirdPrizeWinner = round.players[thirdIndex];
         }
-
-        round.firstPrizeWinner = round.players[firstIndex];
-        round.secondPrizeWinner = round.players[secondIndex];
-        round.thirdPrizeWinner = round.players[thirdIndex];
-
-        emit WinnersSelected(
-            roundId,
-            round.firstPrizeWinner,
-            round.secondPrizeWinner,
-            round.thirdPrizeWinner
-        );
+        
+        emit WinnersSelected(roundId, round.firstPrizeWinner, round.secondPrizeWinner, round.thirdPrizeWinner);
+        
+        // Distribute prizes
+        _distributePrizes(roundId);
     }
-
+    
     /**
      * @dev Distribute prizes to winners
      */
     function _distributePrizes(uint256 roundId) internal {
         LotteryRound storage round = lotteryRounds[roundId];
-        
         if (round.prizesDistributed) {
             revert PrizesAlreadyDistributed();
         }
 
-        // Calculate house fee
-        uint256 houseFee = (round.prizePool * HOUSE_FEE_PERCENTAGE) / 100;
-        uint256 totalPrizePool = round.prizePool - houseFee;
-        houseFunds += houseFee;
-
-        // Calculate prize amounts
-        round.firstPrizeAmount = (totalPrizePool * FIRST_PRIZE_PERCENTAGE) / 100;
-        round.secondPrizeAmount = (totalPrizePool * SECOND_PRIZE_PERCENTAGE) / 100;
-        round.thirdPrizeAmount = (totalPrizePool * THIRD_PRIZE_PERCENTAGE) / 100;
-
-        // Distribute prizes
-        if (round.firstPrizeAmount > 0) {
-            payable(round.firstPrizeWinner).transfer(round.firstPrizeAmount);
+        // Distribute first prize
+        if (round.firstPrizeWinner != address(0) && round.firstPrizeAmount > 0) {
+            (bool success, ) = payable(round.firstPrizeWinner).call{value: round.firstPrizeAmount}("");
+            if (success) {
+                playerStats[round.firstPrizeWinner].totalPrizesWon += round.firstPrizeAmount;
+            }
         }
-        if (round.secondPrizeAmount > 0) {
-            payable(round.secondPrizeWinner).transfer(round.secondPrizeAmount);
+        
+        // Distribute second prize
+        if (round.secondPrizeWinner != address(0) && round.secondPrizeAmount > 0) {
+            (bool success, ) = payable(round.secondPrizeWinner).call{value: round.secondPrizeAmount}("");
+            if (success) {
+                playerStats[round.secondPrizeWinner].totalPrizesWon += round.secondPrizeAmount;
+            }
         }
-        if (round.thirdPrizeAmount > 0) {
-            payable(round.thirdPrizeWinner).transfer(round.thirdPrizeAmount);
+        
+        // Distribute third prize
+        if (round.thirdPrizeWinner != address(0) && round.thirdPrizeAmount > 0) {
+            (bool success, ) = payable(round.thirdPrizeWinner).call{value: round.thirdPrizeAmount}("");
+            if (success) {
+                playerStats[round.thirdPrizeWinner].totalPrizesWon += round.thirdPrizeAmount;
+            }
         }
 
         round.prizesDistributed = true;
-        round.state = LotteryState.CLOSED;
-        totalRoundsCompleted++;
-
-        emit PrizesDistributed(
-            roundId,
-            round.firstPrizeAmount,
-            round.secondPrizeAmount,
-            round.thirdPrizeAmount
-        );
+        
+        emit PrizesDistributed(roundId, round.firstPrizeAmount, round.secondPrizeAmount, round.thirdPrizeAmount);
     }
 
     /**
@@ -384,13 +380,14 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
      */
     function _startNewRound() internal {
         currentRoundId++;
-        LotteryRound storage newRound = lotteryRounds[currentRoundId];
+        totalRounds++;
         
+        LotteryRound storage newRound = lotteryRounds[currentRoundId];
         newRound.roundId = currentRoundId;
         newRound.startTime = block.timestamp;
         newRound.state = LotteryState.OPEN;
 
-        emit LotteryRoundStarted(currentRoundId, block.timestamp);
+        emit RoundStarted(currentRoundId, block.timestamp);
     }
 
     /**
@@ -402,7 +399,7 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
         
         (bool success, ) = payable(owner()).call{value: amount}("");
         if (!success) {
-            revert WithdrawalFailed();
+            revert TransferFailed();
         }
         
         emit HouseFundsWithdrawn(amount);
@@ -435,24 +432,7 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
      * @dev Get lottery round by ID
      */
     function getRound(uint256 roundId) external view returns (LotteryRound memory) {
-        if (roundId == 0 || roundId > currentRoundId) {
-            revert InvalidRoundId();
-        }
         return lotteryRounds[roundId];
-    }
-
-    /**
-     * @dev Get player's tickets for a specific round
-     */
-    function getPlayerTicketsForRound(address player, uint256 roundId) external view returns (uint256) {
-        return ticketsPerPlayerPerRound[roundId][player];
-    }
-
-    /**
-     * @dev Get all rounds a player participated in
-     */
-    function getPlayerRounds(address player) external view returns (uint256[] memory) {
-        return playerTickets[player];
     }
 
     /**
@@ -463,17 +443,10 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
     }
 
     /**
-     * @dev Get current prize pool
+     * @dev Get player's tickets for a specific round
      */
-    function getCurrentPrizePool() external view returns (uint256) {
-        return lotteryRounds[currentRoundId].prizePool;
-    }
-
-    /**
-     * @dev Get total tickets sold in current round
-     */
-    function getCurrentTicketsSold() external view returns (uint256) {
-        return lotteryRounds[currentRoundId].totalTickets;
+    function getPlayerTicketsForRound(uint256 roundId, address player) external view returns (uint256) {
+        return playerTicketsPerRound[roundId][player];
     }
 
     /**
@@ -484,17 +457,18 @@ contract LuckyMotorsLottery is VRFConsumerBaseV2, ConfirmedOwner, ReentrancyGuar
     }
 
     /**
-     * @dev Get token cost for tickets
+     * @dev Get current prize pool
      */
-    function getTokenCostForTickets(uint256 ticketCount) external pure returns (uint256) {
-        return TICKET_PRICE * ticketCount * TOKEN_TO_ETH_RATE;
+    function getCurrentPrizePool() external view returns (uint256) {
+        return lotteryRounds[currentRoundId].prizePool;
     }
 
     /**
-     * @dev Get token reward for tickets
+     * @dev Check if randomness can be fulfilled for a round
      */
-    function getTokenRewardForTickets(uint256 ticketCount) external pure returns (uint256) {
-        uint256 totalCost = TICKET_PRICE * ticketCount;
-        return (totalCost * TOKEN_REWARD_RATE * TOKEN_TO_ETH_RATE) / (100 * 1 ether) * 1 ether;
+    function canFulfillRandomness(uint256 roundId) external view returns (bool) {
+        LotteryRound storage round = lotteryRounds[roundId];
+        return round.state == LotteryState.CLOSED && 
+               block.number >= round.randomnessRequestBlock + RANDOMNESS_DELAY_BLOCKS;
     }
 }

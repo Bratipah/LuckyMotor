@@ -114,7 +114,7 @@ export function HeroSection() {
                 {/* Prize Image */}
                 <div className="relative">
                   <img
-                    src="/electric-motorcycle.png"
+                    src="/roam-electric-motorcycle.png"
                     alt="African Thunder E-Motorcycle"
                     className="w-full h-48 object-cover rounded-lg"
                     onError={(e) => {

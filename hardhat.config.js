@@ -1,7 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox")
 require("dotenv").config()
 
-const PRIVATE_KEY = process.env.PRIVATE_KEY || ""
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000000"
 const LISK_RPC_URL = process.env.LISK_RPC_URL || "https://rpc.api.lisk.com"
 const LISK_SEPOLIA_RPC_URL = process.env.LISK_SEPOLIA_RPC_URL || "https://rpc.sepolia-api.lisk.com"
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || ""
@@ -20,62 +20,58 @@ module.exports = {
     hardhat: {
       chainId: 31337,
     },
-    // Lisk Mainnet (Layer 2)
-    lisk: {
-      url: LISK_RPC_URL,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 1135, // Lisk L2 Mainnet Chain ID
-      gasPrice: 1000000000, // 1 gwei
-    },
     // Lisk Sepolia Testnet (Layer 2)
     liskSepolia: {
       url: LISK_SEPOLIA_RPC_URL,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 4202, // Lisk L2 Sepolia Testnet Chain ID
+      accounts:
+        PRIVATE_KEY !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? [PRIVATE_KEY] : [],
+      chainId: 4202,
       gasPrice: 1000000000, // 1 gwei
+      gas: 6000000,
+      timeout: 60000,
     },
-    // Keep other networks for comparison
+    // Lisk Mainnet (Layer 2)
+    lisk: {
+      url: LISK_RPC_URL,
+      accounts:
+        PRIVATE_KEY !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? [PRIVATE_KEY] : [],
+      chainId: 1135,
+      gasPrice: 1000000000, // 1 gwei
+      gas: 6000000,
+      timeout: 60000,
+    },
+    // Ethereum Sepolia Testnet (for comparison)
     sepolia: {
       url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts:
+        PRIVATE_KEY !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? [PRIVATE_KEY] : [],
       chainId: 11155111,
-    },
-    mainnet: {
-      url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 1,
-    },
-    polygon: {
-      url: "https://polygon-rpc.com/",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 137,
     },
   },
   etherscan: {
     apiKey: {
-      lisk: "your-lisk-api-key", // Replace with actual Lisk explorer API key
-      liskSepolia: "your-lisk-sepolia-api-key",
-      mainnet: ETHERSCAN_API_KEY,
+      liskSepolia: "abc", // Placeholder - Lisk uses different verification
+      lisk: "abc", // Placeholder - Lisk uses different verification
       sepolia: ETHERSCAN_API_KEY,
     },
     customChains: [
-      {
-        network: "lisk",
-        chainId: 1135,
-        urls: {
-          apiURL: "https://blockscout.lisk.com/api",
-          browserURL: "https://blockscout.lisk.com"
-        }
-      },
       {
         network: "liskSepolia",
         chainId: 4202,
         urls: {
           apiURL: "https://sepolia-blockscout.lisk.com/api",
-          browserURL: "https://sepolia-blockscout.lisk.com"
-        }
-      }
-    ]
+          browserURL: "https://sepolia-blockscout.lisk.com",
+        },
+      },
+      {
+        network: "lisk",
+        chainId: 1135,
+        urls: {
+          apiURL: "https://blockscout.lisk.com/api",
+          browserURL: "https://blockscout.lisk.com",
+        },
+      },
+    ],
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
