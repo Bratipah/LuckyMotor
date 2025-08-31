@@ -9,8 +9,7 @@ const LOTTERY_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_LOTTERY_ADDRESS ||
 const TOKEN_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_ADDRESS ||
   "0x19BeF5c0D78015891e83DD0541c9Fa324A6c9A07") as `0x${string}`
 
-const LOTTERY_ABI = 
-[
+const LOTTERY_ABI = [
   {
     "inputs": [
       {
