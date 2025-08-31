@@ -24,11 +24,20 @@ import {
 } from "lucide-react"
 import { Header } from "@/components/header"
 import { useAccount } from "wagmi"
+import { useLotteryContract, useTokenContract } from "@/hooks/use-lottery-contract"
 
 export default function AdminDashboard() {
   const [ethRate, setEthRate] = useState("2000")
-  const [isLoading, setIsLoading] = useState(false)
   const { address, isConnected } = useAccount()
+
+  const {
+    endRound,
+    startNewRound,
+    getLotteryStats,
+    isLoading: lotteryLoading,
+    error: lotteryError,
+  } = useLotteryContract()
+  const { totalSupply, tokenBalance } = useTokenContract()
 
   // Mock admin check - in production, implement proper role-based access
   const isAdmin = true // Replace with actual admin check
@@ -64,18 +73,28 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateEthRate = async () => {
-    setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
+    // This would call a contract function to update the ETH rate
+    console.log("Updating ETH rate to:", ethRate)
+    // await updateEthRate(ethRate)
   }
 
   const handleEndRound = async () => {
-    setIsLoading(true)
-    // Simulate ending current round
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsLoading(false)
+    try {
+      await endRound()
+    } catch (err) {
+      console.error("Failed to end round:", err)
+    }
   }
+
+  const handleStartNewRound = async () => {
+    try {
+      await startNewRound()
+    } catch (err) {
+      console.error("Failed to start new round:", err)
+    }
+  }
+
+  const lotteryStats = getLotteryStats()
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -88,6 +107,12 @@ export default function AdminDashboard() {
             <span>Admin Dashboard</span>
           </h1>
           <p className="text-gray-600">Manage the LuckyMotors lottery system</p>
+
+          {lotteryError && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-700 text-sm">Contract Error: {lotteryError}</p>
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
@@ -141,8 +166,8 @@ export default function AdminDashboard() {
                   <Ticket className="h-4 w-4 text-gray-400" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-gray-800">12,450</div>
-                  <p className="text-xs text-gray-500">Current round: 1,247</p>
+                  <div className="text-2xl font-bold text-gray-800">{lotteryStats.totalTicketsSold}</div>
+                  <p className="text-xs text-gray-500">Current round: {lotteryStats.currentRound}</p>
                 </CardContent>
               </Card>
 
@@ -152,8 +177,8 @@ export default function AdminDashboard() {
                   <Coins className="h-4 w-4 text-gray-400" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-gray-800">847K</div>
-                  <p className="text-xs text-gray-500">Max supply: 1M</p>
+                  <div className="text-2xl font-bold text-gray-800">{Number(totalSupply).toLocaleString()}</div>
+                  <p className="text-xs text-gray-500">Total supply</p>
                 </CardContent>
               </Card>
             </div>
@@ -170,15 +195,19 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label className="text-gray-600">Round ID</Label>
-                    <div className="text-2xl font-bold text-gray-800">#52</div>
+                    <div className="text-2xl font-bold text-gray-800">#{lotteryStats.currentRound}</div>
                   </div>
                   <div>
                     <Label className="text-gray-600">Prize Pool</Label>
-                    <div className="text-2xl font-bold text-gray-800">$5,000</div>
+                    <div className="text-2xl font-bold text-gray-800">{lotteryStats.prizePool}</div>
                   </div>
                   <div>
                     <Label className="text-gray-600">Status</Label>
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <Badge
+                      className={lotteryStats.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                    >
+                      {lotteryStats.isActive ? "Active" : "Inactive"}
+                    </Badge>
                   </div>
                 </div>
 
@@ -187,11 +216,11 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-600">Tickets Sold</Label>
-                    <div className="text-xl font-semibold text-gray-800">1,247</div>
+                    <div className="text-xl font-semibold text-gray-800">{lotteryStats.totalTicketsSold}</div>
                   </div>
                   <div>
                     <Label className="text-gray-600">Time Remaining</Label>
-                    <div className="text-xl font-semibold text-gray-800">4d 12h 30m</div>
+                    <div className="text-xl font-semibold text-gray-800">{lotteryStats.timeRemaining}</div>
                   </div>
                 </div>
 
@@ -250,12 +279,16 @@ export default function AdminDashboard() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-gray-600">Current Round</Label>
-                    <div className="text-2xl font-bold text-gray-800">#52</div>
+                    <div className="text-2xl font-bold text-gray-800">#{lotteryStats.currentRound}</div>
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-gray-600">Status</Label>
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <Badge
+                      className={lotteryStats.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                    >
+                      {lotteryStats.isActive ? "Active" : "Inactive"}
+                    </Badge>
                   </div>
 
                   <Separator className="bg-gray-200" />
@@ -263,10 +296,10 @@ export default function AdminDashboard() {
                   <div className="space-y-3">
                     <Button
                       onClick={handleEndRound}
-                      disabled={isLoading}
+                      disabled={lotteryLoading}
                       className="w-full bg-red-500 hover:bg-red-600"
                     >
-                      {isLoading ? (
+                      {lotteryLoading ? (
                         <>
                           <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                           Ending Round...
@@ -279,7 +312,12 @@ export default function AdminDashboard() {
                       )}
                     </Button>
 
-                    <Button className="w-full bg-transparent" variant="outline">
+                    <Button
+                      onClick={handleStartNewRound}
+                      disabled={lotteryLoading}
+                      className="w-full bg-transparent"
+                      variant="outline"
+                    >
                       <Play className="w-4 h-4 mr-2" />
                       Start New Round
                     </Button>
@@ -565,8 +603,8 @@ export default function AdminDashboard() {
                     <p>Last updated: 2 hours ago</p>
                   </div>
 
-                  <Button onClick={handleUpdateEthRate} disabled={isLoading} className="w-full">
-                    {isLoading ? (
+                  <Button onClick={handleUpdateEthRate} disabled={lotteryLoading} className="w-full">
+                    {lotteryLoading ? (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                         Updating...
