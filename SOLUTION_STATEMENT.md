@@ -1,63 +1,3 @@
-# LuckyMotors: Executive Investment Summary
-
-## Investment Thesis
-
-LuckyMotors represents a **$120M revenue opportunity** by 2029, targeting the underserved $9B lottery market across Africa and Latin America. Our blockchain-native platform addresses critical market failures through provable fairness, financial inclusion, and sustainable impact—capturing 1.33% market share across 730M people in six high-growth economies.
-
-### Investment Highlights
-
-**Market Opportunity**
-- **$9B TAM** across fragmented, trust-deficient lottery markets
-- **2.4B SAM** with 48M digitally-enabled, underserved consumers  
-- **730M population** across Kenya, Nigeria, South Africa, Colombia, Mexico, Brazil
-- **60%+ unbanked** populations seeking transparent financial services
-
-**Competitive Moat**
-- **First-mover advantage** in blockchain lottery across target regions
-- **Regulatory barriers** requiring $20.2M in licensing capital over 5 years
-- **Network effects** driving winner selection and prize pool growth
-- **Technical superiority** through Chainlink VRF provable fairness
-
-**Financial Projections**
-- **900% Revenue CAGR** from $6M (Year 1) to $120M (Year 5)
-- **95%+ Gross Margins** through smart contract automation
-- **$25.5M Total Investment** across three funding rounds
-- **5-7x Return Multiple** for Series A investors by exit
-
-**Traction Indicators**
-- **Strategic partnerships** with Safaricom (50M users), MTN (60M users)
-- **Regulatory progress** in Kenya ($370K license) and Colombia ($1.25M license)
-- **Technical validation** through Lisk L2 deployment and Chainlink integration
-- **Prize partnerships** with Roam Electric (30+ retail locations)
-
-### Risk Assessment
-
-**Mitigated Risks**
-- **Regulatory**: Diversified across 6 jurisdictions with local partnerships
-- **Technical**: Proven blockchain infrastructure (Lisk L2, Chainlink VRF)
-- **Market**: Validated demand through existing $9B traditional lottery spend
-- **Execution**: Experienced team with fintech and blockchain expertise
-
-**Key Risk Factors**
-- **Regulatory delays** could extend market entry timelines by 6-12 months
-- **Cryptocurrency volatility** may impact user adoption rates
-- **Competitive response** from traditional operators or new entrants
-- **Partnership dependency** on mobile money and telecom providers
-
-### Investment Requirements
-
-**Series A: $8M (Current Round)**
-- **Use of Funds**: Nigeria/Mexico expansion, product development, team scaling
-- **Valuation**: $32M pre-money, $40M post-money
-- **Investor Rights**: Board seat, pro-rata rights, 1x liquidation preference
-- **Timeline**: 18-month runway to Series B profitability milestone
-
-**Exit Strategy**
-- **Strategic Acquisition**: Traditional lottery operators seeking digital transformation
-- **IPO Potential**: $500M+ revenue run-rate by 2030 across emerging markets
-- **Comparable Valuations**: 8-12x revenue multiples for gaming/fintech platforms
-
----
 # LuckyMotors: Solution Statement & Market Strategy
 
 ## Executive Solution Statement
@@ -165,6 +105,66 @@ Our platform captures value from three converging macro trends: **mobile-first f
    - $5M monthly ticket sales
    - 25% monthly active user rate
    - Break-even on operational costs
+  
+
+## LuckyMotors: Executive Investment Summary & Thesis
+
+LuckyMotors represents a **$120M revenue opportunity** by 2029, targeting the underserved $9B lottery market across Africa and Latin America. Our blockchain-native platform addresses critical market failures through provable fairness, financial inclusion, and sustainable impact—capturing 1.33% market share across 730M people in six high-growth economies.
+
+### Investment Highlights
+
+**Market Opportunity**
+- **$9B TAM** across fragmented, trust-deficient lottery markets
+- **2.4B SAM** with 48M digitally-enabled, underserved consumers  
+- **730M population** across Kenya, Nigeria, South Africa, Colombia, Mexico, Brazil
+- **60%+ unbanked** populations seeking transparent financial services
+
+**Competitive Moat**
+- **First-mover advantage** in blockchain lottery across target regions
+- **Regulatory barriers** requiring $20.2M in licensing capital over 5 years
+- **Network effects** driving winner selection and prize pool growth
+- **Technical superiority** through Chainlink VRF provable fairness
+
+**Financial Projections**
+- **900% Revenue CAGR** from $6M (Year 1) to $120M (Year 5)
+- **95%+ Gross Margins** through smart contract automation
+- **$25.5M Total Investment** across three funding rounds
+- **5-7x Return Multiple** for Series A investors by exit
+
+**Traction Indicators**
+- **Strategic partnerships** with Safaricom (50M users), MTN (60M users)
+- **Regulatory progress** in Kenya ($370K license) and Colombia ($1.25M license)
+- **Technical validation** through Lisk L2 deployment and Chainlink integration
+- **Prize partnerships** with Roam Electric (30+ retail locations)
+
+### Risk Assessment
+
+**Mitigated Risks**
+- **Regulatory**: Diversified across 6 jurisdictions with local partnerships
+- **Technical**: Proven blockchain infrastructure (Lisk L2, Chainlink VRF)
+- **Market**: Validated demand through existing $9B traditional lottery spend
+- **Execution**: Experienced team with fintech and blockchain expertise
+
+**Key Risk Factors**
+- **Regulatory delays** could extend market entry timelines by 6-12 months
+- **Cryptocurrency volatility** may impact user adoption rates
+- **Competitive response** from traditional operators or new entrants
+- **Partnership dependency** on mobile money and telecom providers
+
+### Investment Requirements
+
+**Series A: $8M (Current Round)**
+- **Use of Funds**: Nigeria/Mexico expansion, product development, team scaling
+- **Valuation**: $32M pre-money, $40M post-money
+- **Investor Rights**: Board seat, pro-rata rights, 1x liquidation preference
+- **Timeline**: 18-month runway to Series B profitability milestone
+
+**Exit Strategy**
+- **Strategic Acquisition**: Traditional lottery operators seeking digital transformation
+- **IPO Potential**: $500M+ revenue run-rate by 2030 across emerging markets
+- **Comparable Valuations**: 8-12x revenue multiples for gaming/fintech platforms
+
+---
 
 ### Phase 3: Market Leadership (Months 37-60)
 **Target**: South Africa & Brazil
