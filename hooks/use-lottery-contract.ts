@@ -2122,6 +2122,30 @@ export function useLotteryContract() {
     }
   }
 
+  const endRound = async () => {
+    if (!address) {
+      setError("Please connect your wallet")
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      await writeContract({
+        address: LOTTERY_CONTRACT_ADDRESS,
+        abi: LOTTERY_ABI,
+        functionName: "endCurrentRound",
+        args: [],
+      })
+    } catch (err: any) {
+      setError(err.message || "Transaction failed")
+      console.error("End round error:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const getUserTicketCount = () => {
     if (!userTickets) return 0
     return Number(userTickets)

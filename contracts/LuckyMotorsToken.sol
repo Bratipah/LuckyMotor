@@ -1,117 +1,47 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts@5.0.0/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts@5.0.0/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts@5.0.0/access/Ownable.sol";
+import "@openzeppelin/contracts@5.0.0/utils/Pausable.sol";
+import "@openzeppelin/contracts@5.0.0/access/AccessControl.sol";
 
-/**
- * @title LuckyMotors Token (LMT)
- * @dev ERC20 token for the LuckyMotors lottery ecosystem
- * Features:
- * - Burnable tokens for deflationary mechanics
- * - Pausable transfers for emergency stops
- * - Authorized minter system for controlled distribution
- * - Maximum supply cap to prevent inflation
- */
-contract LuckyMotorsToken is ERC20, ERC20Burnable, Ownable, Pausable {
-    // Maximum supply: 10 million tokens
-    uint256 public constant MAX_SUPPLY = 10_000_000 * 10**18;
+
+
+contract LuckyMotorsToken is ERC20, ERC20Burnable, Ownable, Pausable, AccessControl {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
-    // Initial supply: 1 million tokens
-    uint256 public constant INITIAL_SUPPLY = 1_000_000 * 10**18;
-    
-    // Mapping of authorized minters
-    mapping(address => bool) public authorizedMinters;
-    
-    // Events
-    event MinterAdded(address indexed minter);
-    event MinterRemoved(address indexed minter);
-    event TokensMinted(address indexed to, uint256 amount);
-    
-    // Custom errors
-    error ExceedsMaxSupply();
-    error UnauthorizedMinter();
-    error ZeroAddress();
-    error ZeroAmount();
-    
-    constructor() ERC20("LuckyMotors Token", "LMT") {
-        // Mint initial supply to deployer
-        _mint(msg.sender, INITIAL_SUPPLY);
+    constructor() 
+        ERC20("LuckyMotorsToken", "LMT") 
+        Ownable(msg.sender)
+    {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+        _mint(msg.sender, 1000000 * 10 ** decimals());
     }
-    
-    /**
-     * @dev Add an authorized minter
-     * @param minter Address to authorize for minting
-     */
-    function addMinter(address minter) external onlyOwner {
-        if (minter == address(0)) revert ZeroAddress();
-        authorizedMinters[minter] = true;
-        emit MinterAdded(minter);
+
+    // Function to add a minter
+    function addMinter(address account) public onlyOwner {
+        _grantRole(MINTER_ROLE, account);
     }
-    
-    /**
-     * @dev Remove an authorized minter
-     * @param minter Address to remove from minting authorization
-     */
-    function removeMinter(address minter) external onlyOwner {
-        if (minter == address(0)) revert ZeroAddress();
-        authorizedMinters[minter] = false;
-        emit MinterRemoved(minter);
+
+    // Function to remove a minter
+    function removeMinter(address account) public onlyOwner {
+        _revokeRole(MINTER_ROLE, account);
     }
-    
-    /**
-     * @dev Mint tokens to specified address
-     * @param to Address to mint tokens to
-     * @param amount Amount of tokens to mint
-     */
-    function mint(address to, uint256 amount) external {
-        if (!authorizedMinters[msg.sender]) revert UnauthorizedMinter();
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-        if (totalSupply() + amount > MAX_SUPPLY) revert ExceedsMaxSupply();
-        
+
+     // Mint function that checks for minter role
+    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
         _mint(to, amount);
-        emit TokensMinted(to, amount);
     }
-    
-    /**
-     * @dev Pause token transfers
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-    
-    /**
-     * @dev Unpause token transfers
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-    
-    /**
-     * @dev Override transfer function to include pause functionality
-     */
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override whenNotPaused {
-        super._beforeTokenTransfer(from, to, amount);
-    }
-    
-    /**
-     * @dev Get remaining mintable supply
-     */
-    function remainingSupply() external view returns (uint256) {
-        return MAX_SUPPLY - totalSupply();
-    }
-    
-    /**
-     * @dev Check if address is authorized minter
-     */
-    function isMinter(address account) external view returns (bool) {
-        return authorizedMinters[account];
+
+
+    function _update(address from, address to, uint256 value)
+        internal
+        override
+        whenNotPaused
+    {
+        super._update(from, to, value);
     }
 }
