@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Coins, CreditCard, Zap, Trophy, Plus, Minus } from "lucide-react"
+import { useLotteryContract, useTokenContract } from "@/hooks/use-lottery-contract"
+import { useAccount } from "wagmi"
+import { LOTTERY_CONTRACT_ADDRESS } from "@/constants"
 
 interface BuyTicketsModalProps {
   isOpen: boolean
@@ -17,19 +20,36 @@ interface BuyTicketsModalProps {
 export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
   const [ticketCount, setTicketCount] = useState(1)
   const [paymentMethod, setPaymentMethod] = useState("eth")
-  const [isLoading, setIsLoading] = useState(false)
 
-  const ticketPrice = 1 // $1 per ticket
-  const totalCost = ticketCount * ticketPrice
-  const lmetReward = totalCost * 50 // 50 LMET per $1 spent
-  const ethPrice = 0.0005 // Mock ETH price per ticket
+  const { address } = useAccount()
+  const { buyTicketsWithETH, buyTicketsWithTokens, ticketPriceETH, ticketPriceTokens, isLoading, error } =
+    useLotteryContract()
+  const { tokenBalance, approveTokens } = useTokenContract()
+
+  const totalCostETH = Number(ticketPriceETH) * ticketCount
+  const totalCostTokens = Number(ticketPriceTokens) * ticketCount
+  const lmetReward = totalCostETH * 50 // 50 LMET per $1 spent (assuming $1 = ticketPriceETH)
 
   const handleBuyTickets = async () => {
-    setIsLoading(true)
-    // Simulate transaction
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsLoading(false)
-    onClose()
+    if (!address) {
+      return
+    }
+
+    try {
+      if (paymentMethod === "eth") {
+        await buyTicketsWithETH(ticketCount)
+      } else {
+        // First approve lottery contract to spend tokens
+        await approveTokens(LOTTERY_CONTRACT_ADDRESS, totalCostTokens.toString())
+        await buyTicketsWithTokens(ticketCount)
+      }
+
+      if (!error) {
+        onClose()
+      }
+    } catch (err) {
+      console.error("Purchase failed:", err)
+    }
   }
 
   const incrementTickets = () => {
@@ -51,6 +71,13 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+
           {/* Ticket Counter */}
           <div className="space-y-3">
             <Label className="text-gray-700 font-medium">Number of Tickets</Label>
@@ -100,16 +127,12 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Price per ticket:</span>
-                    <span className="font-semibold text-gray-800">${ticketPrice}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">ETH Cost:</span>
-                    <span className="font-semibold text-gray-800">{(ticketCount * ethPrice).toFixed(4)} ETH</span>
+                    <span className="font-semibold text-gray-800">{ticketPriceETH} ETH</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center text-lg">
                     <span className="font-semibold text-gray-800">Total:</span>
-                    <span className="font-bold text-gray-800">${totalCost}</span>
+                    <span className="font-bold text-gray-800">{totalCostETH.toFixed(4)} ETH</span>
                   </div>
                 </CardContent>
               </Card>
@@ -120,7 +143,7 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
                   <span className="font-semibold text-green-800">Reward Bonus</span>
                 </div>
                 <p className="text-sm text-green-700">
-                  You'll receive <strong>{lmetReward} LMET tokens</strong> as a 50% cashback reward!
+                  You'll receive <strong>{lmetReward.toFixed(0)} LMET tokens</strong> as a reward!
                 </p>
               </div>
             </TabsContent>
@@ -134,15 +157,27 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">LMET per ticket:</span>
-                    <span className="font-semibold text-gray-800">100 LMET</span>
+                    <span className="font-semibold text-gray-800">{ticketPriceTokens} LMET</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Your balance:</span>
+                    <span className="font-semibold text-gray-800">{Number(tokenBalance).toFixed(0)} LMET</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center text-lg">
                     <span className="font-semibold text-gray-800">Total Cost:</span>
-                    <span className="font-bold text-gray-800">{ticketCount * 100} LMET</span>
+                    <span className="font-bold text-gray-800">{totalCostTokens} LMET</span>
                   </div>
                 </CardContent>
               </Card>
+
+              {Number(tokenBalance) < totalCostTokens && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-700">
+                    Insufficient LMET balance. You need {totalCostTokens - Number(tokenBalance)} more LMET tokens.
+                  </p>
+                </div>
+              )}
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-center space-x-2 mb-2">
@@ -171,7 +206,7 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
           {/* Buy Button */}
           <Button
             onClick={handleBuyTickets}
-            disabled={isLoading}
+            disabled={isLoading || !address || (paymentMethod === "lmet" && Number(tokenBalance) < totalCostTokens)}
             className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-semibold py-3 text-lg"
           >
             {isLoading ? (
