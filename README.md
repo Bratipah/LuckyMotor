@@ -8,6 +8,8 @@ The LuckyMotors Lottery is a decentralized, transparent, and provably fair lotte
 
 ### [Solution](https://github.com/Bratipah/LuckyMotor/blob/main/SOLUTION_STATEMENT.md)
 
+### [Deployed Live Link](https://lucky-m.vercel.app/)
+
 ## How It Works
 
 ### 1. Lottery Rounds
