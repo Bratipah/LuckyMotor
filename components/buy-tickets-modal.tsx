@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Coins, CreditCard, Zap, Trophy, Plus, Minus } from "lucide-react"
 import { useLotteryContract, useTokenContract } from "@/hooks/use-lottery-contract"
 import { useAccount } from "wagmi"
+import { LOTTERY_CONTRACT_ADDRESS } from "@/constants"
 
 interface BuyTicketsModalProps {
   isOpen: boolean
@@ -38,8 +39,8 @@ export function BuyTicketsModal({ isOpen, onClose }: BuyTicketsModalProps) {
       if (paymentMethod === "eth") {
         await buyTicketsWithETH(ticketCount)
       } else {
-        // First approve tokens if needed
-        await approveTokens(address, totalCostTokens.toString())
+        // First approve lottery contract to spend tokens
+        await approveTokens(LOTTERY_CONTRACT_ADDRESS, totalCostTokens.toString())
         await buyTicketsWithTokens(ticketCount)
       }
 
