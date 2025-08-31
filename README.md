@@ -80,10 +80,6 @@ Emergency pause/unpause the contract.
 
 ## Technical Implementation
 
-### Chainlink VRF Integration
-\`\`\`solidity
-// VRF Configuration
-uint64 private immutable i_subscriptionId;
-bytes32 private immutable i_gasLane;
-uint32 private immutable i_callbackGasLimit;
-uint16 private constant REQUEST_CONFIRMATIONS = 3;
+### Smart Contract 
+LMT Token deployed in the contact address (0x8387c60314c3a630F1cAed28595ABE162a9C8740)[https://sepolia-blockscout.lisk.com/token/0x8387c60314c3a630F1cAed28595ABE162a9C8740]
+Lottery Contract deployed in the contact address (0x1EDe53CceaD3956Ee09f81A98F9635257343E870)[https://sepolia-blockscout.lisk.com/address/0x1EDe53CceaD3956Ee09f81A98F9635257343E870]
