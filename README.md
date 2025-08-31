@@ -4,6 +4,10 @@
 
 The LuckyMotors Lottery is a decentralized, transparent, and provably fair lottery system built on Ethereum. It uses Chainlink VRF (Verifiable Random Function) to ensure truly random winner selection, making it impossible for anyone (including the contract owner) to manipulate the results.
 
+### (Problem Statement)[https://github.com/Bratipah/LuckyMotor/blob/main/PROBLEM_STATEMENT.md]
+
+### (Solution)[https://github.com/Bratipah/LuckyMotor/blob/main/SOLUTION_STATEMENT.md]
+
 ## How It Works
 
 ### 1. Lottery Rounds
