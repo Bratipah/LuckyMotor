@@ -4,9 +4,8 @@ import { useState, useEffect } from "react"
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
 import { parseEther } from "viem"
 
-// Mock contract addresses - replace with actual deployed addresses
-const LOTTERY_CONTRACT_ADDRESS = "0x1234567890123456789012345678901234567890"
-const TOKEN_CONTRACT_ADDRESS = "0x0987654321098765432109876543210987654321"
+const LOTTERY_CONTRACT_ADDRESS = "0x1EDe53CceaD3956Ee09f81A98F9635257343E870"
+const TOKEN_CONTRACT_ADDRESS = "0x19BeF5c0D78015891e83DD0541c9Fa324A6c9A07"
 
 // Mock ABI - replace with actual contract ABI
 const LOTTERY_ABI = [
