@@ -1,4 +1,4 @@
-# LuckyMotors Lottery Smart Contract
+# LuckyMotors Lottery 
 
 ## Overview
 
