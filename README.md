@@ -12,6 +12,8 @@ The LuckyMotors Lottery is a decentralized, transparent, and provably fair lotte
 
 ### [Pitch Deck](https://docs.google.com/presentation/d/1NpywSpLFXGMDvE5drccgFqGeArDbGt6J/edit?usp=sharing&ouid=100704301490866851172&rtpof=true&sd=true)
 
+### [Demo Video](https://www.loom.com/share/cb4b6aa9ae8741e692889f16872a1990?sid=2c635c29-901a-4b3c-8d90-b8572058d90c)
+
 ## How It Works
 
 ### 1. Lottery Rounds
